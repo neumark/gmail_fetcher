@@ -1,7 +1,8 @@
-#from http://zetcode.com/databases/mysqlpythontutorial/
+#10.0.2.2from http://zetcode.com/databases/mysqlpythontutorial/
 import sys 
 import json
 import time
+import MySQLdb as mdb
 
 def mysql_date(d):
     return time.strftime('%Y-%m-%d %H:%M:%S', d)
@@ -15,16 +16,16 @@ class Db:
         'sync_update': "UPDATE `email`.`sync` SET `status` = %s, `import_success` = %s, `import_error` = %s, `import_duplicate` = %s WHERE idsync = %s"
     }
 
-    def __init__(self, conn, interval):
-        self.conn = conn
+    def __init__(self, conn_params, interval):
+        self.conn_params = conn_params
         # init connection
-        cur = self.conn.cursor()
-        cur.execute("SET NAMES utf8; SET CHARACTER SET utf8; SET character_set_connection=utf8")
-        cur.close()
         self.start = interval[0]
         self.end = interval[1]
         self.sessionid = self.add_sync_record(self.start, self.end)
         print "Sync session id: "+str(self.sessionid)
+
+    def connect(self):
+        self.conn = mdb.connect(**self.conn_params)
 
     def esc_str(self,s):
         return s
@@ -43,13 +44,23 @@ class Db:
 
     def with_conn(self, fun, args=None):
         ret = None
+        self.connect()
+        cur = self.conn.cursor()
+        cur.execute("SET NAMES utf8; SET CHARACTER SET utf8; SET character_set_connection=utf8;")
+        cur.close()
         cur = self.conn.cursor()
         try:
             ret = fun(cur, args) if args is not None else fun(cur)
+        #except mdb.OperationalError:
+        #    self.connect()
+        #    return self.with_conn(fun, args)
         except Exception, e:
             cur.close()
+            self.close()
             raise
         cur.close()
+        self.conn.commit()
+        self.close()
         return ret
 
     def execute(self, cur, args):
@@ -101,11 +112,9 @@ class Db:
             non_dups = set(uids)
             cur.execute(dups_query)
             for row in cur.fetchall():
-                print row[0]
                 non_dups.remove(str(row[0]))
             return list(non_dups)
         return self.with_conn(work)
 
     def close(self):
-        self.conn.commit()
         self.conn.close()

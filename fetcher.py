@@ -49,7 +49,8 @@ class Fetcher:
                     h = HTMLParser.HTMLParser()
                     return h.unescape(unicode(s, charset))
                 else:
-                    return unicode(quopri.decodestring(s), charset)
+                    #return unicode(quopri.decodestring(s), charset)
+                    return unicode(s, charset)
             maintype = email_message.get_content_maintype()
             if maintype == 'multipart':
                 for part in email_message.get_payload():
